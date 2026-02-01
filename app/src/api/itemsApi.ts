@@ -11,6 +11,17 @@ import { directusClient } from './directus'
 import type { MyCollections } from './directus'
 import type { ItemsApi } from 'utopia-ui'
 
+// Fields to request when fetching items to include all relational data
+const ITEM_FIELDS = [
+  '*',
+  'secrets.*',
+  'to.*',
+  'relations.*',
+  'user_created.*',
+  'markerIcon.*',
+  { offers: ['*'], needs: ['*'], gallery: ['*.*'] } as any,
+]
+
 export class itemsApi<T> implements ItemsApi<T> {
   collectionName: keyof MyCollections
   filter: any
@@ -20,8 +31,8 @@ export class itemsApi<T> implements ItemsApi<T> {
 
   constructor(
     collectionName: keyof MyCollections,
-    layerId?: string | undefined,
-    mapId?: string | undefined,
+    layerId?: string,
+    mapId?: string,
     filter?: any,
     customParameter?: any,
   ) {
@@ -43,15 +54,7 @@ export class itemsApi<T> implements ItemsApi<T> {
     try {
       const result = await directusClient.request<T[]>(
         readItems(this.collectionName as never, {
-          fields: [
-            '*',
-            'secrets.*',
-            'to.*',
-            'relations.*',
-            'user_created.*',
-            'markerIcon.*',
-            { offers: ['*'], needs: ['*'], gallery: ['*.*'] } as any,
-          ],
+          fields: ITEM_FIELDS,
           filter: this.filter,
           limit: -1,
         }),
@@ -70,7 +73,11 @@ export class itemsApi<T> implements ItemsApi<T> {
 
   async getItem(id: string): Promise<T> {
     try {
-      const result = await directusClient.request(readItem(this.collectionName as never, id))
+      const result = await directusClient.request(
+        readItem(this.collectionName as never, id, {
+          fields: ITEM_FIELDS,
+        }),
+      )
       return result as T
     } catch (error: any) {
       console.log(error)
@@ -82,13 +89,18 @@ export class itemsApi<T> implements ItemsApi<T> {
   async createItem(item: T & { id?: string }): Promise<T> {
     try {
       const result = await directusClient.request(
-        createItem(this.collectionName, {
-          ...item,
-          ...(this.customParameter && this.customParameter),
-          ...(this.layerId && { layer: this.layerId }),
-          ...(this.layerId && { layer: this.layerId }),
-          ...(this.mapId && { map: this.mapId }),
-        }),
+        createItem(
+          this.collectionName,
+          {
+            ...item,
+            ...(this.customParameter && this.customParameter),
+            ...(this.layerId && { layer: this.layerId }),
+            ...(this.mapId && { map: this.mapId }),
+          },
+          {
+            fields: ITEM_FIELDS,
+          },
+        ),
       )
       return result as T
     } catch (error: any) {
@@ -100,7 +112,11 @@ export class itemsApi<T> implements ItemsApi<T> {
 
   async updateItem(item: T & { id?: string }): Promise<T> {
     try {
-      const result = await directusClient.request(updateItem(this.collectionName, item.id!, item))
+      const result = await directusClient.request(
+        updateItem(this.collectionName, item.id!, item, {
+          fields: ITEM_FIELDS,
+        }),
+      )
       return result as T
     } catch (error: any) {
       console.log(error)
@@ -111,8 +127,8 @@ export class itemsApi<T> implements ItemsApi<T> {
 
   async deleteItem(id: string): Promise<boolean> {
     try {
-      const result = await directusClient.request(deleteItem(this.collectionName, id))
-      return result as unknown as boolean
+      await directusClient.request(deleteItem(this.collectionName, id))
+      return true
     } catch (error: any) {
       console.log(error)
       if (error.errors[0].message) throw error.errors[0].message

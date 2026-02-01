@@ -1,4 +1,5 @@
 /* eslint-disable security/detect-object-injection */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -38,7 +39,7 @@ export const Tabs: React.FC<TabsProps> = ({ items, setUrlParams }: TabsProps) =>
       setUrlParams(params)
       const newUrl = location.pathname + '?' + params.toString()
 
-      navigate(newUrl, { replace: false })
+      void navigate(newUrl, { replace: false })
     },
     [location.pathname, location.search, navigate, setUrlParams],
   )
@@ -51,7 +52,9 @@ export const Tabs: React.FC<TabsProps> = ({ items, setUrlParams }: TabsProps) =>
             key={index}
             role='tab'
             className={`tw:tab ${index === activeIndex ? 'tw:tab-active' : ''}`}
-            onClick={() => updateActiveTab(index)}
+            onClick={() => {
+              updateActiveTab(index)
+            }}
           >
             {item.title}
           </div>

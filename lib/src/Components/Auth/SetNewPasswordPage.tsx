@@ -22,13 +22,13 @@ export function SetNewPasswordPage() {
     await toast.promise(passwordReset(token, password), {
       success: {
         render() {
-          navigate('/')
+          void navigate('/')
           return 'New password set'
         },
       },
       error: {
         render({ data }) {
-          return `${data as string}`
+          return data as string
         },
       },
       pending: 'setting password ...',
@@ -41,7 +41,9 @@ export function SetNewPasswordPage() {
       <input
         type='password'
         placeholder='Password'
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={(e) => {
+          setPassword(e.target.value)
+        }}
         className='tw:input tw:input-bordered tw:w-full tw:max-w-xs'
       />
       <div className='tw:card-actions tw:mt-4'>

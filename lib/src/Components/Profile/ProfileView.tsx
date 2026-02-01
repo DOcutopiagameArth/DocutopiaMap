@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-
+/* eslint-disable @typescript-eslint/use-unknown-in-catch-callback-variable */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
 
@@ -186,11 +186,13 @@ export function ProfileView({ attestationApi }: { attestationApi?: ItemsApi<any>
                     // Error handling is already in handleDelete
                   })
                 }}
-                editCallback={() => navigate('/edit-item/' + item.id)}
+                editCallback={() => {
+                  void navigate('/edit-item/' + item.id)
+                }}
                 setPositionCallback={() => {
                   map.closePopup()
                   setSelectPosition(item)
-                  navigate('/')
+                  void navigate('/')
                 }}
                 big
                 truncateSubname={false}

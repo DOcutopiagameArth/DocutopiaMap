@@ -17,7 +17,7 @@ export function MapOverlayPage({
   card?: boolean
 }) {
   const closeScreen = () => {
-    navigate(`/${window.location.search ? window.location.search : ''}`)
+    void navigate(`/${window.location.search ? window.location.search : ''}`)
   }
 
   const navigate = useNavigate()
@@ -50,7 +50,9 @@ export function MapOverlayPage({
           {children}
           <button
             className='tw:btn tw:btn-sm tw:btn-circle tw:btn-ghost tw:absolute tw:right-2 tw:top-2'
-            onClick={() => closeScreen()}
+            onClick={() => {
+              closeScreen()
+            }}
           >
             ✕
           </button>

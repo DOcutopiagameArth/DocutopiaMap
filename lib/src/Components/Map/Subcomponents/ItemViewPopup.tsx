@@ -81,7 +81,7 @@ export const ItemViewPopup = forwardRef((props: ItemViewPopupProps, ref: any) =>
     setLoading(false)
     map.closePopup()
     removeItemFromUrl()
-    navigate('/')
+    void navigate('/')
   }
 
   return (
@@ -99,7 +99,7 @@ export const ItemViewPopup = forwardRef((props: ItemViewPopupProps, ref: any) =>
           setPositionCallback={() => {
             map.closePopup()
             setSelectPosition(props.item)
-            navigate('/')
+            void navigate('/')
           }}
           loading={loading}
         />
@@ -114,7 +114,9 @@ export const ItemViewPopup = forwardRef((props: ItemViewPopupProps, ref: any) =>
           ) : (
             <p
               className='tw:my-0! tw:min-h-[21px] tw:font-bold tw:cursor-pointer tw:text-gray-500'
-              onClick={() => setInfoExpanded(true)}
+              onClick={() => {
+                setInfoExpanded(true)
+              }}
             >
               ⓘ
             </p>
