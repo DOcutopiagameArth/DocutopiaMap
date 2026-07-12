@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 
 import TargetSVG from '#assets/target.svg'
+import { useAppState } from '#components/AppShell/hooks/useAppState'
 import { useAuth } from '#components/Auth/useAuth'
 import { useAddItem, useUpdateItem } from '#components/Map/hooks/useItems'
 import { useLayers } from '#components/Map/hooks/useLayers'
@@ -39,11 +40,16 @@ export const LocateControl = (): React.JSX.Element => {
   const updateItem = useUpdateItem()
   const addItem = useAddItem()
   const layers = useLayers()
-  const { user } = useAuth()
+  const { user, isInitialized } = useAuth()
+  const { autoLocateOnLogin } = useAppState()
   const navigate = useNavigate()
 
   // Prevent React 18 StrictMode from calling useEffect twice
   const init = useRef(false)
+  // Track whether auto-locate has already fired (one-shot per session)
+  const hasAutoLocatedRef = useRef(false)
+  // Snapshot of user after initial auth completes — changes after this are real logins
+  const initialUserRef = useRef<typeof user>(undefined)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const [lc, setLc] = useState<any>(null)
@@ -54,6 +60,8 @@ export const LocateControl = (): React.JSX.Element => {
   const [hasUpdatedPosition, setHasUpdatedPosition] = useState<boolean>(false)
   const [hasDeclinedModal, setHasDeclinedModal] = useState<boolean>(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // True when the user manually triggered locate — used to show error toast only on their action
+  const manualClickRef = useRef<boolean>(false)
 
   const currentPosition = myProfile.myProfile?.position?.coordinates ?? null
 
@@ -76,8 +84,10 @@ export const LocateControl = (): React.JSX.Element => {
 
   useEffect(() => {
     if (!init.current) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      setLc(control.locate().addTo(map))
+      setLc(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        control.locate({ showPopup: false, onLocationError: () => {} }).addTo(map),
+      )
       init.current = true
     }
 
@@ -88,6 +98,38 @@ export const LocateControl = (): React.JSX.Element => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-start location tracking after a real login (not page reload)
+  useEffect(() => {
+    if (!isInitialized || !autoLocateOnLogin || !lc) return
+
+    // First time isInitialized is true: snapshot the current user as baseline
+    if (initialUserRef.current === undefined) {
+      initialUserRef.current = user
+      return
+    }
+
+    // If user changed from null to a value after the baseline was set, it's a real login
+    if (!hasAutoLocatedRef.current && user && initialUserRef.current === null) {
+      hasAutoLocatedRef.current = true
+      void (async () => {
+        // Skip auto-locate if browser geolocation permission is denied
+        try {
+          const result = await navigator.permissions.query({ name: 'geolocation' })
+          if (result.state === 'denied') return
+        } catch (e: unknown) {
+          if (!(e instanceof TypeError || e instanceof DOMException)) throw e
+          // Permissions API unavailable, fall through to lc.start()
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        lc.start()
+        setLoading(true)
+        setHasDeclinedModal(false)
+      })()
+    }
+
+    initialUserRef.current = user
+  }, [isInitialized, user, lc, autoLocateOnLogin])
 
   // Check if user logged in while location is active and found
   useEffect(() => {
@@ -101,6 +143,13 @@ export const LocateControl = (): React.JSX.Element => {
         setShowLocationModal(true)
       }, 1000)
     }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+    }
   }, [active, foundLocation, showLocationModal, hasUpdatedPosition, shouldShowModal])
 
   useMapEvents({
@@ -109,9 +158,13 @@ export const LocateControl = (): React.JSX.Element => {
       setActive(true)
       setFoundLocation(e.latlng)
     },
-    locationerror: () => {
+    locationerror: (e) => {
       setLoading(false)
       setActive(false)
+      if (manualClickRef.current) {
+        manualClickRef.current = false
+        toast.error(e.message || 'Could not find your location')
+      }
     },
   })
 
@@ -127,12 +180,25 @@ export const LocateControl = (): React.JSX.Element => {
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
       }
-    } else {
+      return
+    }
+
+    void (async () => {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' })
+        if (result.state === 'denied') {
+          toast.error('Location access denied. Please enable it in your browser settings.')
+          return
+        }
+      } catch (e: unknown) {
+        if (!(e instanceof TypeError || e instanceof DOMException)) throw e
+      }
+      manualClickRef.current = true
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       lc.start()
       setLoading(true)
-      setHasDeclinedModal(false) // Reset declined state when turning on location
-    }
+      setHasDeclinedModal(false)
+    })()
   }
 
   const itemUpdatePosition = useCallback(async () => {
@@ -212,23 +278,16 @@ export const LocateControl = (): React.JSX.Element => {
         setHasUpdatedPosition(false)
       }, 5000)
     } catch (error: unknown) {
-      if (error instanceof Error) {
+      if (error instanceof Error || typeof error === 'string') {
         toast.update(toastId, {
-          render: error.message,
-          type: 'error',
-          isLoading: false,
-          autoClose: 5000,
-          closeButton: true,
-        })
-      } else if (typeof error === 'string') {
-        toast.update(toastId, {
-          render: error,
+          render: error instanceof Error ? error.message : error,
           type: 'error',
           isLoading: false,
           autoClose: 5000,
           closeButton: true,
         })
       } else {
+        toast.dismiss(toastId)
         throw error
       }
     }
@@ -282,9 +341,14 @@ export const LocateControl = (): React.JSX.Element => {
             <label
               className='tw:btn tw:mt-4 tw:btn-primary'
               onClick={() => {
-                void itemUpdatePosition().then(() => {
-                  setShowLocationModal(false)
-                })
+                void itemUpdatePosition()
+                  .then(() => {
+                    setShowLocationModal(false)
+                  })
+                  .catch(() => {
+                    setShowLocationModal(false)
+                    setHasDeclinedModal(true)
+                  })
               }}
             >
               Yes

@@ -4,8 +4,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 
-import { useEffect, useState } from 'react'
-import { TextView } from 'utopia-ui'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { TextView, useAuth } from 'utopia-ui'
 
 import { config } from './config'
 
@@ -14,21 +15,38 @@ interface ChapterProps {
   map?: any
 }
 
+const ROOT_PATH = '/'
+
 export function Welcome1({ clickAction1, map }: ChapterProps) {
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+
   return (
     <>
       {map.custom_text ? (
         <>
           <TextView rawText={map.custom_text}></TextView>
-          <div className='tw:grid'>
-            <label
-              className='tw:btn tw:btn-primary tw:place-self-end tw:mt-4'
-              onClick={() => {
-                clickAction1()
-              }}
-            >
-              Close
-            </label>
+          <div className='tw:grid tw:mt-4'>
+            {isAuthenticated ? (
+              <label
+                className='tw:btn tw:btn-primary tw:place-self-end'
+                onClick={() => {
+                  clickAction1()
+                }}
+              >
+                Close
+              </label>
+            ) : (
+              <label
+                className='tw:btn tw:btn-primary tw:place-self-end'
+                onClick={() => {
+                  clickAction1()
+                  void navigate('/login')
+                }}
+              >
+                Login
+              </label>
+            )}
           </div>
         </>
       ) : (
@@ -45,15 +63,27 @@ export function Welcome1({ clickAction1, map }: ChapterProps) {
             Join us and grow the network by adding projects and events to the map.
           </p>
           <p className='tw:py-1'>Create your personal profile and place it on the map.</p>
-          <div className='tw:grid'>
-            <label
-              className='tw:btn tw:btn-primary tw:place-self-end tw:mt-4'
-              onClick={() => {
-                clickAction1()
-              }}
-            >
-              Close
-            </label>
+          <div className='tw:grid tw:mt-4'>
+            {isAuthenticated ? (
+              <label
+                className='tw:btn tw:btn-primary tw:place-self-end'
+                onClick={() => {
+                  clickAction1()
+                }}
+              >
+                Close
+              </label>
+            ) : (
+              <label
+                className='tw:btn tw:btn-primary tw:place-self-end'
+                onClick={() => {
+                  clickAction1()
+                  void navigate('/login')
+                }}
+              >
+                Login
+              </label>
+            )}
           </div>
         </>
       )}
@@ -67,12 +97,32 @@ const close = () => {
 }
 
 export const ModalContent = ({ map }: { map: any }) => {
+  const { pathname } = useLocation()
+  const autoOpenedModal = useRef(false)
+  const hasHandledStartupModal = useRef(false)
+  const initialPathname = useRef(pathname)
+
   useEffect(() => {
-    const myModal = document.getElementById('my_modal_3') as HTMLDialogElement
-    if (map.info_open) {
-      myModal.showModal()
+    const myModal = document.getElementById('my_modal_3')
+    if (!(myModal instanceof HTMLDialogElement)) {
+      return
     }
-  }, [map.info_open])
+
+    if (!hasHandledStartupModal.current) {
+      hasHandledStartupModal.current = true
+
+      if (map.info_open && initialPathname.current === ROOT_PATH && !myModal.open) {
+        myModal.showModal()
+        autoOpenedModal.current = true
+        return
+      }
+    }
+
+    if (pathname !== ROOT_PATH && autoOpenedModal.current && myModal.open) {
+      myModal.close()
+      autoOpenedModal.current = false
+    }
+  }, [map.info_open, pathname])
 
   const [chapter, setChapter] = useState<number>(1)
   // const setQuestsOpen = useSetQuestOpen()
